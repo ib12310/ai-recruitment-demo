@@ -42,5 +42,5 @@ jobs:
         env:
           # Provide a dummy key so the Anthropic client can be instantiated.
           # All API calls are mocked in tests — no real key is needed.
-          ANTHROPIC_API_KEY: ci-placeholder-key
+          GROQ_API_KEY: ci-placeholder-key
         run: pytest tests/ -v

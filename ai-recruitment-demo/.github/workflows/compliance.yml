@@ -30,7 +30,7 @@ jobs:
       # This confirms the codebase is healthy before we check compliance artefacts.
       - name: Run tests
         env:
-          ANTHROPIC_API_KEY: ci-placeholder-key
+          GROQ_API_KEY: ci-placeholder-key
         run: pytest tests/ -v
 
       # Exercise the real logging code paths so audit_log.json and cv_log.json
@@ -39,7 +39,7 @@ jobs:
       # verifying that the logging mechanism itself works end-to-end.
       - name: Generate compliance artefacts
         env:
-          ANTHROPIC_API_KEY: ci-placeholder-key
+          GROQ_API_KEY: ci-placeholder-key
         run: |
           python - <<'EOF'
           from services.scorer import log_scoring_event, log_override_event
