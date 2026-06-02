@@ -10,13 +10,15 @@ client = TestClient(app)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _mock_claude_response(score: int = 78, reasoning: str = "Strong technical background."):
-    """Return a MagicMock that looks like an Anthropic messages.create() response."""
-    content = MagicMock()
-    content.text = json.dumps({"score": score, "reasoning": reasoning})
+def _mock_groq_response(score: int = 78, reasoning: str = "Strong technical background."):
+    """Return a MagicMock that looks like a Groq chat.completions.create() response."""
     message = MagicMock()
-    message.content = [content]
-    return message
+    message.content = json.dumps({"score": score, "reasoning": reasoning})
+    choice = MagicMock()
+    choice.message = message
+    response = MagicMock()
+    response.choices = [choice]
+    return response
 
 
 def _post_score(cv_text: str = "John Smith\nPython developer.", job_desc: str = "Senior Python Engineer."):
@@ -31,7 +33,7 @@ def _post_score(cv_text: str = "John Smith\nPython developer.", job_desc: str = 
 def test_score_is_between_0_and_100(tmp_path):
     """The returned score must be an integer in the valid 0-100 range."""
     with (
-        patch("services.scorer.client.messages.create", return_value=_mock_claude_response(score=78)),
+        patch("services.scorer.client.chat.completions.create", return_value=_mock_groq_response(score=78)),
         patch("services.scorer.AUDIT_LOG", tmp_path / "audit_log.json"),
         patch("routers.scoring_router.track_with_mlflow"),
     ):
@@ -50,7 +52,7 @@ def test_scoring_event_written_to_audit_log(tmp_path):
     audit_log = tmp_path / "audit_log.json"
 
     with (
-        patch("services.scorer.client.messages.create", return_value=_mock_claude_response(score=65)),
+        patch("services.scorer.client.chat.completions.create", return_value=_mock_groq_response(score=65)),
         patch("services.scorer.AUDIT_LOG", audit_log),
         patch("routers.scoring_router.track_with_mlflow"),
     ):
