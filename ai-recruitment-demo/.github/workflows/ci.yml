@@ -1,0 +1,46 @@
+name: CI
+
+# Run on every push to main
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      # Check out the repository code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Set up the Python version that matches our target runtime
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Cache pip dependencies so repeated runs are faster
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # Install all project dependencies from requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Run the full test suite.
+      # pytest exits with a non-zero code if any test fails,
+      # which causes the workflow step (and the whole job) to fail.
+      - name: Run pytest
+        env:
+          # Provide a dummy key so the Anthropic client can be instantiated.
+          # All API calls are mocked in tests — no real key is needed.
+          ANTHROPIC_API_KEY: ci-placeholder-key
+        run: pytest tests/ -v

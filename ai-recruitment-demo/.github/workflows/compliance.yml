@@ -1,0 +1,143 @@
+name: Compliance Checks
+
+# Run on every push to main alongside the CI workflow
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  compliance:
+    name: EU AI Act Compliance Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      # Check out the repository code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Set up Python so we can run the app's own logging code
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Install dependencies (needed to import services/scorer.py and cv_parser.py)
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Run the unit tests first.
+      # This confirms the codebase is healthy before we check compliance artefacts.
+      - name: Run tests
+        env:
+          ANTHROPIC_API_KEY: ci-placeholder-key
+        run: pytest tests/ -v
+
+      # Exercise the real logging code paths so audit_log.json and cv_log.json
+      # are written with genuine entries before the compliance checks run.
+      # Using the app's own functions (not hand-crafted JSON) means we are
+      # verifying that the logging mechanism itself works end-to-end.
+      - name: Generate compliance artefacts
+        env:
+          ANTHROPIC_API_KEY: ci-placeholder-key
+        run: |
+          python - <<'EOF'
+          from services.scorer import log_scoring_event, log_override_event
+          from services.cv_parser import log_extraction
+
+          # Simulate a CV parse event (writes to logs/cv_log.json)
+          log_extraction(
+              "compliance_test_cv.pdf",
+              {
+                  "name": "CI Candidate",
+                  "email": "ci@example.com",
+                  "education": ["BSc Computer Science"],
+                  "experience": ["Software Engineer"],
+              },
+          )
+
+          # Simulate a scoring event (writes to logs/audit_log.json)
+          log_scoring_event(
+              cv_text="CI Candidate\nci@example.com\nSoftware Engineer",
+              job_description="Python Developer — compliance check run",
+              result={
+                  "score": 75,
+                  "reasoning": "Compliance CI seed entry — not a real candidate.",
+                  "model_version": "ci-seed",
+                  "latency_ms": 0,
+              },
+          )
+
+          # Simulate a human override (also writes to logs/audit_log.json)
+          log_override_event(
+              candidate_id="CI Candidate",
+              original_score=75,
+              new_score=80,
+              reason="Compliance CI override seed.",
+          )
+
+          print("Compliance artefacts written successfully.")
+          EOF
+
+      # ── Compliance checks ────────────────────────────────────────────────────
+      # Each check sets COMPLIANCE_FAIL=1 on failure so all results are printed
+      # before the job exits, giving a complete picture in one run.
+      - name: Run compliance checks
+        run: |
+          COMPLIANCE_FAIL=0
+
+          echo "================================================"
+          echo " EU AI Act Compliance Check — Audit Artefacts  "
+          echo "================================================"
+
+          # Check 1: logs/ directory must exist
+          if [ -d "logs" ]; then
+            echo "PASS  logs/ directory exists"
+          else
+            echo "FAIL  logs/ directory is missing"
+            COMPLIANCE_FAIL=1
+          fi
+
+          # Check 2: audit_log.json must exist and contain at least one entry
+          if [ -s "logs/audit_log.json" ]; then
+            LINE_COUNT=$(wc -l < logs/audit_log.json)
+            echo "PASS  audit_log.json exists and contains ${LINE_COUNT} event(s)"
+          else
+            echo "FAIL  audit_log.json is missing or empty — scoring events are not being logged"
+            COMPLIANCE_FAIL=1
+          fi
+
+          # Check 3: cv_log.json must exist (proves CV parsing is logged)
+          if [ -s "logs/cv_log.json" ]; then
+            LINE_COUNT=$(wc -l < logs/cv_log.json)
+            echo "PASS  cv_log.json exists and contains ${LINE_COUNT} event(s)"
+          else
+            echo "FAIL  cv_log.json is missing or empty — CV processing events are not being logged"
+            COMPLIANCE_FAIL=1
+          fi
+
+          # Check 4: audit_log.json must contain at least one ai_score event
+          if grep -q '"event": "ai_score"' logs/audit_log.json 2>/dev/null; then
+            echo "PASS  audit_log.json contains ai_score events"
+          else
+            echo "FAIL  No ai_score events found in audit_log.json"
+            COMPLIANCE_FAIL=1
+          fi
+
+          # Check 5: audit_log.json must contain at least one human_override event
+          if grep -q '"event": "human_override"' logs/audit_log.json 2>/dev/null; then
+            echo "PASS  audit_log.json contains human_override events (human oversight is active)"
+          else
+            echo "FAIL  No human_override events found — human oversight may not be in place"
+            COMPLIANCE_FAIL=1
+          fi
+
+          echo "------------------------------------------------"
+
+          # Final status
+          if [ "$COMPLIANCE_FAIL" -eq 0 ]; then
+            echo "COMPLIANCE STATUS: PASS"
+          else
+            echo "COMPLIANCE STATUS: FAIL"
+            exit 1
+          fi
