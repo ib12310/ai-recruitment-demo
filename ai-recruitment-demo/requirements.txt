@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+python-multipart
+pydantic
+python-dotenv
+anthropic
+mlflow
+PyPDF2
+python-docx
+ddtrace
+pytest
+httpx
