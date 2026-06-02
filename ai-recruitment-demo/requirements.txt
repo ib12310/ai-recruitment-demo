@@ -3,7 +3,7 @@ uvicorn
 python-multipart
 pydantic
 python-dotenv
-anthropic
+groq
 mlflow
 PyPDF2
 python-docx

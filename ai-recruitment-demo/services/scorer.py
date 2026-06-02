@@ -5,21 +5,20 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import json as _json
+
 import mlflow
-from anthropic import Anthropic
 from dotenv import load_dotenv
+from groq import Groq
 
 load_dotenv()
 
 AUDIT_LOG = Path(__file__).parent.parent / "logs" / "audit_log.json"
-MODEL = "claude-haiku-4-5-20251001"
+MODEL = "llama-3.3-70b-versatile"
 
-# Client is initialised only when an API key is present.
-# In stub/demo mode the key is not required and client will be None.
-_api_key = os.getenv("ANTHROPIC_API_KEY")
-client = Anthropic(api_key=_api_key) if _api_key else None
+_api_key = os.getenv("GROQ_API_KEY")
+client = Groq(api_key=_api_key) if _api_key else None
 
-# Prompt instructs Claude to return strict JSON so we can parse it reliably
 SCORING_PROMPT = """\
 You are an expert technical recruiter. Given a candidate CV and a job description, \
 score how well the candidate fits the role on a scale of 0-100.
@@ -38,23 +37,16 @@ Respond with valid JSON only — no markdown, no extra text — in exactly this 
 
 
 def score_candidate(cv_text: str, job_description: str) -> dict:
-    """
-    Score a candidate against a job description.
-    Returns a dict with score, reasoning, model_version, and latency_ms.
-
-    NOTE: This returns a stub response so the system can be run and tested
-    without an Anthropic API key. Replace with a real API call when needed.
-    """
+    """Score a candidate against a job description using the Groq API."""
     start = time.time()
 
-    # Stub response — no API call is made
-    parsed = {
-        "score": 75,
-        "reasoning": (
-            "Demo mode: candidate appears to meet the core requirements of the role "
-            "based on experience and qualifications listed in the CV."
-        ),
-    }
+    prompt = SCORING_PROMPT.format(cv_text=cv_text, job_description=job_description)
+    response = client.chat.completions.create(
+        model=MODEL,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    raw = response.choices[0].message.content
+    parsed = _json.loads(raw)
 
     latency_ms = round((time.time() - start) * 1000)
 
