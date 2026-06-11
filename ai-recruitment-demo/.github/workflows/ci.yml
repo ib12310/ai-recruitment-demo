@@ -40,7 +40,40 @@ jobs:
       # which causes the workflow step (and the whole job) to fail.
       - name: Run pytest
         env:
-          # Provide a dummy key so the Anthropic client can be instantiated.
+          # Provide a dummy key so the Groq client can be instantiated.
           # All API calls are mocked in tests — no real key is needed.
           GROQ_API_KEY: ci-placeholder-key
         run: pytest tests/ -v
+
+      # Verify that the mandatory EU AI Act Annex III compliance controls are
+      # still present in the codebase after every push.
+      - name: compliance-check
+        run: |
+          echo "[COMPLIANCE] Running EU AI Act Annex III checks..."
+
+          # Check 1: audit log module must exist
+          if find . -name "scorer.py" -path "*/services/*" | grep -q .; then
+            echo "[COMPLIANCE] PASS: Audit log module found (services/scorer.py)"
+          else
+            echo "[COMPLIANCE] FAIL: No audit log module found"
+            exit 1
+          fi
+
+          # Check 2: mlflow must be a declared dependency
+          if grep -q "^mlflow" requirements.txt; then
+            echo "[COMPLIANCE] PASS: MLflow found in dependencies"
+          else
+            echo "[COMPLIANCE] FAIL: MLflow not in dependencies"
+            exit 1
+          fi
+
+          echo "[COMPLIANCE] PASS: Core compliance checks passed"
+
+      # Warn (but do not fail) if the EU AI Act Article 13 model card is missing.
+      - name: model-card-check
+        run: |
+          if [ -f "MODEL_CARD.md" ]; then
+            echo "[INFO] MODEL_CARD.md found — Article 13 transparency document present"
+          else
+            echo "[WARNING] MODEL_CARD.md not found — required for EU AI Act Article 13 transparency"
+          fi
