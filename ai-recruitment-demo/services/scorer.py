@@ -104,10 +104,16 @@ def log_override_event(
 
 
 def track_with_mlflow(score: int, latency_ms: int) -> None:
-    """Log a single scoring run to MLflow as metrics."""
+    """Log a single scoring run to MLflow with metrics, params, and compliance tags."""
     with mlflow.start_run():
         mlflow.log_metric("candidate_score", score)
         mlflow.log_metric("latency_ms", latency_ms)
+        mlflow.log_param("model_version", "1.2.0")
+        mlflow.log_param("llm_provider", "groq")
+        mlflow.log_param("llm_model", MODEL)
+        mlflow.log_param("environment", os.getenv("APP_ENV", "development"))
+        mlflow.set_tag("compliance.framework", "EU-AI-ACT-ANNEX-III")
+        mlflow.set_tag("system.version", "hire-screening-3.0")
 
 
 def _append_log(entry: dict) -> None:
